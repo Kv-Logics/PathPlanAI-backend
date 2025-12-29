@@ -1,31 +1,66 @@
 import json
-from pathlib import Path
-from typing import List, Dict
+import re
+from app.core.llm_client import LLMClient
 
-DATA_PATH = Path("data/opportunities.json")
+llm = LLMClient()
 
-def load_opportunities() -> List[Dict]:
-    with open(DATA_PATH, "r") as f:
-        return json.load(f)
 
-def match_opportunities(user_skills: List[str]) -> Dict:
-    opportunities = load_opportunities()
+def extract_json(text: str) -> dict:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return {"raw_output": text}
+    try:
+        return json.loads(match.group())
+    except json.JSONDecodeError:
+        return {"raw_output": text}
 
-    result = {
-        "safe": [],
-        "stretch": [],
-        "aspirational": []
+
+def identify_opportunities(
+    capabilities: dict,
+    market_analysis: dict,
+    target_role: str
+) -> dict:
+    """
+    Identify suitable job/internship opportunities
+    based on skills and market alignment.
+    """
+
+    prompt = f"""
+You are an AI Opportunity Intelligence Agent.
+
+Target role:
+{target_role}
+
+User capabilities:
+{json.dumps(capabilities, indent=2)}
+
+Market analysis:
+{json.dumps(market_analysis, indent=2)}
+
+Your task:
+1. Categorize opportunities into:
+   - Safe (high match)
+   - Stretch (partial match)
+   - Aspirational (future-ready)
+2. Suggest specific role titles
+3. Give concise application advice
+
+Return ONLY valid JSON:
+{{
+  "safe_opportunities": [],
+  "stretch_opportunities": [],
+  "aspirational_opportunities": [],
+  "application_advice": ""
+}}
+"""
+
+    response = llm.generate(
+        system_prompt="You reason about job opportunities and readiness.",
+        user_prompt=prompt
+    )
+
+    structured = extract_json(response)
+
+    return {
+        "opportunities": structured
     }
-
-    for opp in opportunities:
-        required = set(opp["required_skills"])
-        matched = required.intersection(set(user_skills))
-
-        if len(matched) > 0:
-            result[opp["difficulty"]].append({
-                "title": opp["title"],
-                "type": opp["type"],
-                "matched_skills": list(matched)
-            })
-
-    return result

@@ -1,31 +1,45 @@
-from typing import List, Dict
+import json
+import re
+from app.core.llm_client import LLMClient
 
-# Simple skill keywords for prototype
-KNOWN_SKILLS = [
-    "python", "java", "c++", "sql", "javascript",
-    "fastapi", "flask", "react", "node",
-    "machine learning", "deep learning",
-    "data analysis", "git", "docker"
-]
+llm = LLMClient()
 
-def extract_skills(resume_text: str) -> List[str]:
-    resume_text = resume_text.lower()
-    found_skills = []
+def extract_json(text: str) -> dict:
+    """
+    Extract JSON object from LLM response safely.
+    """
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return {"raw_output": text}
 
-    for skill in KNOWN_SKILLS:
-        if skill in resume_text:
-            found_skills.append(skill)
-
-    return list(set(found_skills))
+    try:
+        return json.loads(match.group())
+    except json.JSONDecodeError:
+        return {"raw_output": text}
 
 
-def build_capability_map(resume_text: str) -> Dict:
-    skills = extract_skills(resume_text)
+def build_capability_map(resume_text: str) -> dict:
+    prompt = f"""
+You are an AI career capability analysis agent.
 
-    capability_map = {
-        "total_skills_detected": len(skills),
-        "skills": skills,
-        "readiness_score": min(len(skills) * 10, 100)  # simple heuristic
+Extract:
+- Technical skills
+- Tools & frameworks
+- Experience level (beginner/intermediate/advanced)
+
+Resume:
+{resume_text}
+
+Return ONLY valid JSON.
+"""
+
+    response = llm.generate(
+        system_prompt="You extract structured career capabilities.",
+        user_prompt=prompt
+    )
+
+    structured = extract_json(response)
+
+    return {
+        "capabilities": structured
     }
-
-    return capability_map

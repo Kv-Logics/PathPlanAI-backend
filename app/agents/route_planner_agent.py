@@ -1,34 +1,31 @@
-def plan_route(capability, opportunities):
-    readiness = capability["readiness_score"]
+from app.core.llm_client import LLMClient
+import json
 
-    if readiness < 40:
-        return {
-            "route": "Skill First",
-            "reason": "Low readiness score. Focus on learning and projects before applying.",
-            "next_actions": [
-                "Complete 2 backend projects",
-                "Learn FastAPI + SQL",
-                "Build GitHub portfolio"
-            ]
-        }
+class RoutePlannerAgent:
+    def __init__(self):
+        self.llm = LLMClient()
 
-    if readiness < 70:
-        return {
-            "route": "Balanced",
-            "reason": "Moderate readiness. Apply selectively while improving skills.",
-            "next_actions": [
-                "Apply to safe opportunities",
-                "Participate in one hackathon",
-                "Improve resume"
-            ]
-        }
+    def plan(self, capability: dict, opportunities: dict) -> dict:
+        system_prompt = """
+You are a career strategy planning agent.
+Choose the best strategy and explain why.
+Respond strictly in JSON.
+"""
 
-    return {
-        "route": "Apply First",
-        "reason": "High readiness. Focus on applications and interviews.",
-        "next_actions": [
-            "Apply to stretch roles",
-            "Prepare for interviews",
-            "Mock interviews"
-        ]
-    }
+        user_prompt = f"""
+Capability Analysis:
+{capability}
+
+Opportunities:
+{opportunities}
+
+Output format:
+{{
+  "route": "Skill First | Balanced | Apply First",
+  "reasoning": "...",
+  "next_actions": [...]
+}}
+"""
+
+        response = self.llm.generate(system_prompt, user_prompt)
+        return json.loads(response)
