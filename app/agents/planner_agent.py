@@ -1,4 +1,3 @@
-
 import json
 import re
 from app.core.llm_client import LLMClient
@@ -26,47 +25,90 @@ def build_career_roadmap(
     timeframe_months: int = 3
 ) -> dict:
     """
-    Build a personalized learning & application roadmap.
+    Build a FRONTEND-RENDERABLE VISUAL ROADMAP.
     """
 
     prompt = f"""
-You are an AI Career Planner Agent.
+You are an AI Career Roadmap Architect.
 
-User goal:
+Create a VISUAL ROADMAP STRUCTURE for frontend rendering.
+
+Target Role:
 {goal}
+
+User Capabilities:
+{json.dumps(capabilities, indent=2)}
 
 Timeframe:
 {timeframe_months} months
 
-Current capabilities:
-{json.dumps(capabilities, indent=2)}
+Rules:
+- Break learning into clear SECTIONS
+- Each section must include:
+  id, title, level, color, prerequisites, nodes
+- Sections must be logically connected
+- Beginner topics first, advanced later
+- IDs must be lowercase_with_underscores
+- Return ONLY valid JSON (no markdown)
 
-Your task:
-1. Identify missing skills
-2. Break the timeframe into weekly milestones
-3. Suggest 2–3 portfolio projects
-4. Define when the user should start applying
-5. Output ONLY valid JSON
-
-JSON format:
+Follow this schema EXACTLY:
 {{
-  "missing_skills": [],
-  "weekly_roadmap": {{
-    "week_1": "",
-    "week_2": ""
-  }},
-  "recommended_projects": [],
-  "application_strategy": ""
+  "roadmap_title": "",
+  "target_role": "",
+  "timeline_months": 0,
+  "sections": [
+    {{
+      "id": "",
+      "title": "",
+      "level": "foundation | core | application | advanced",
+      "color": "",
+      "prerequisites": [],
+      "nodes": []
+    }}
+  ]
 }}
 """
 
     response = llm.generate(
-        system_prompt="You are a strategic career planning agent.",
+        system_prompt="You design structured career roadmaps for UI visualization.",
         user_prompt=prompt
     )
 
     structured = extract_json(response)
 
+    # ---------- NORMALIZATION ----------
+    allowed_levels = {"foundation", "core", "application", "advanced"}
+    default_colors = {
+        "foundation": "#4A90E2",
+        "core": "#7ED321",
+        "application": "#50E3C2",
+        "advanced": "#D0021B"
+    }
+
+    sections = structured.get("sections", [])
+    normalized_sections = []
+
+    for idx, sec in enumerate(sections):
+        level = sec.get("level", "foundation")
+        if level not in allowed_levels:
+            level = "foundation"
+
+        section_id = sec.get("id", "").strip().lower().replace(" ", "_")
+
+        normalized_sections.append({
+            "id": section_id if section_id else f"section_{idx+1}",
+            "title": sec.get("title", "Untitled Section"),
+            "level": level,
+            "color": sec.get("color", default_colors[level]),
+            "prerequisites": sec.get("prerequisites", []),
+            "nodes": sec.get("nodes", [])
+        })
+
     return {
-        "roadmap": structured
+        "roadmap": {
+            "roadmap_title": structured.get("roadmap_title", f"{goal} Roadmap"),
+            "target_role": structured.get("target_role", goal),
+            "timeline_months": structured.get("timeline_months", timeframe_months),
+            "sections": normalized_sections
+        }
     }
